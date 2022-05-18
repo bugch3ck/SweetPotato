@@ -1020,8 +1020,8 @@ namespace rpc_df1941c5_fe89_4e79_bf10_463657acf44d_1_0
     #region Client Implementation
     public sealed class Client : NtApiDotNet.Win32.Rpc.RpcClientBase
     {
-        public Client() : 
-                base("df1941c5-fe89-4e79-bf10-463657acf44d", 1, 0)
+        public Client(string uuid = "df1941c5-fe89-4e79-bf10-463657acf44d") :
+                base(uuid, 1, 0)
         {
         }
         private _Unmarshal_Helper SendReceive(int p, _Marshal_Helper m)

